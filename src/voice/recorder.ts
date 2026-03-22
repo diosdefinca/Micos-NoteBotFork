@@ -57,6 +57,9 @@ export class RecorderManager {
     };
 
     pcmStream.on('data', (chunk: Buffer) => {
+      if (recorder.totalBytes === 0) {
+        console.log(`First audio packet received from ${username}`);
+      }
       recorder.chunks.push(chunk);
       recorder.totalBytes += chunk.length;
       resetSilenceTimer();
