@@ -165,3 +165,7 @@ cython_debug/
 bot-env
 recordings
 cache
+
+# Node.js
+node_modules/
+dist/

@@ -1,0 +1,27 @@
+{
+  "name": "notebot",
+  "version": "1.0.0",
+  "description": "Discord meeting note-taking bot with voice recording and transcription",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "deploy-commands": "tsx src/bot/deploy.ts"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.9.0",
+    "@discordjs/voice": "^0.18.0",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7",
+    "mongodb": "^6.12.0",
+    "openai": "^4.77.0",
+    "prism-media": "^1.3.5",
+    "sodium-native": "^4.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

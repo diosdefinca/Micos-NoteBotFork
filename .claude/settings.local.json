@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/Users/w8cas/projects/Micos-NoteBotFork -type f -name *.toml -o -name *.yml -o -name *.yaml)"
+      "Bash(find /c/Users/w8cas/projects/Micos-NoteBotFork -type f -name *.toml -o -name *.yml -o -name *.yaml)",
+      "Bash(git -C c:/Users/w8cas/projects/Micos-NoteBotFork log --oneline -20)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"const p = require\\(''prism-media''\\); console.log\\(Object.keys\\(p\\)\\)\")",
+      "Bash(node -e \"const p = require\\(''prism-media''\\); console.log\\(Object.keys\\(p.opus\\)\\)\")"
     ]
   }
 }
