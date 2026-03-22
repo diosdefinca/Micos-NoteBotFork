@@ -1,67 +1,46 @@
-/**
- * Calculate RMS energy in dB for a 16-bit PCM buffer.
- */
-export function calculateRmsDb(pcm: Buffer): number {
-  const samples = pcm.length / 2; // 16-bit = 2 bytes per sample
-  if (samples === 0) return -Infinity;
-
-  let sumSquares = 0;
-  for (let i = 0; i < pcm.length; i += 2) {
-    const sample = pcm.readInt16LE(i);
-    sumSquares += sample * sample;
-  }
-
-  const rms = Math.sqrt(sumSquares / samples);
-  if (rms === 0) return -Infinity;
-  return 20 * Math.log10(rms / 32768);
-}
+import { spawn } from 'node:child_process';
 
 /**
- * Downsample mono PCM from 48kHz to 16kHz.
- * Input: 48kHz, 16-bit, 1 channel
- * Output: 16kHz, 16-bit, 1 channel
+ * Convert audio buffer to 16kHz mono 16-bit PCM WAV using FFmpeg.
+ * This is the exact format recommended for OpenAI Whisper.
  */
-export function downsampleTo16k(pcm: Buffer): Buffer {
-  const ratio = 3; // 48000 / 16000
-  const inputSamples = pcm.length / 2; // 16-bit = 2 bytes per sample
-  const outputSamples = Math.floor(inputSamples / ratio);
-  const output = Buffer.alloc(outputSamples * 2);
+export function convertToWhisperWav(input: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const ffmpeg = spawn('ffmpeg', [
+      '-i', 'pipe:0',        // read from stdin
+      '-ar', '16000',         // 16kHz sample rate
+      '-ac', '1',             // mono
+      '-c:a', 'pcm_s16le',   // 16-bit PCM
+      '-f', 'wav',            // WAV format
+      'pipe:1',               // write to stdout
+    ], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
 
-  for (let i = 0; i < outputSamples; i++) {
-    const srcOffset = i * ratio * 2;
-    const sample = pcm.readInt16LE(srcOffset);
-    output.writeInt16LE(sample, i * 2);
-  }
+    const chunks: Buffer[] = [];
+    let stderr = '';
 
-  return output;
-}
+    ffmpeg.stdout.on('data', (chunk: Buffer) => {
+      chunks.push(chunk);
+    });
 
-/**
- * Wrap raw PCM data in a WAV container.
- */
-export function pcmToWav(pcm: Buffer, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
-  const byteRate = sampleRate * channels * (bitsPerSample / 8);
-  const blockAlign = channels * (bitsPerSample / 8);
-  const header = Buffer.alloc(44);
+    ffmpeg.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
+    });
 
-  // RIFF header
-  header.write('RIFF', 0);
-  header.writeUInt32LE(36 + pcm.length, 4);
-  header.write('WAVE', 8);
+    ffmpeg.on('close', (code) => {
+      if (code === 0) {
+        resolve(Buffer.concat(chunks));
+      } else {
+        reject(new Error(`FFmpeg exited with code ${code}: ${stderr}`));
+      }
+    });
 
-  // fmt sub-chunk
-  header.write('fmt ', 12);
-  header.writeUInt32LE(16, 16);           // sub-chunk size
-  header.writeUInt16LE(1, 20);            // PCM format
-  header.writeUInt16LE(channels, 22);
-  header.writeUInt32LE(sampleRate, 24);
-  header.writeUInt32LE(byteRate, 28);
-  header.writeUInt16LE(blockAlign, 30);
-  header.writeUInt16LE(bitsPerSample, 32);
+    ffmpeg.on('error', (err) => {
+      reject(new Error(`FFmpeg spawn error: ${err.message}`));
+    });
 
-  // data sub-chunk
-  header.write('data', 36);
-  header.writeUInt32LE(pcm.length, 40);
-
-  return Buffer.concat([header, pcm]);
+    ffmpeg.stdin.write(input);
+    ffmpeg.stdin.end();
+  });
 }

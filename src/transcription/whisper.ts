@@ -9,7 +9,6 @@ const openai = new OpenAI({ apiKey: config.openaiApiKey });
 const MAX_RETRIES = 3;
 
 export async function transcribe(wavBuffer: Buffer): Promise<string> {
-  // Write to temp file — more reliable than in-memory toFile
   const tmpPath = path.join(os.tmpdir(), `notebot-${Date.now()}.wav`);
   fs.writeFileSync(tmpPath, wavBuffer);
 
@@ -33,7 +32,6 @@ export async function transcribe(wavBuffer: Buffer): Promise<string> {
       }
     }
   } finally {
-    // Clean up temp file
     try { fs.unlinkSync(tmpPath); } catch {}
   }
 

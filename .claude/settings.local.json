@@ -8,7 +8,17 @@
       "Bash(node -e \"const p = require\\(''prism-media''\\); console.log\\(Object.keys\\(p\\)\\)\")",
       "Bash(node -e \"const p = require\\(''prism-media''\\); console.log\\(Object.keys\\(p.opus\\)\\)\")",
       "Bash(npm ls:*)",
-      "Bash(npm view:*)"
+      "Bash(npm view:*)",
+      "Bash(npm search:*)",
+      "Bash(grep -r \"OggDemuxer\\\\|ogg\\\\|OGG\" C:/Users/w8cas/projects/Micos-NoteBotFork/node_modules/prism-media --include=*.ts --include=*.js --include=*.d.ts)",
+      "Bash(find C:/Users/w8cas/projects/Micos-NoteBotFork/node_modules -name *ogg* -o -name *opus*)",
+      "Bash(grep -E \"\\\\.\\(js|ts|d\\\\.ts\\)$\")",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:datatracker.ietf.org)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:copyprogramming.com)",
+      "WebFetch(domain:wiki.xiph.org)"
     ]
   }
 }

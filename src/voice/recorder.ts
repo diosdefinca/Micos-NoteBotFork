@@ -1,19 +1,15 @@
 import { VoiceConnection, EndBehaviorType } from '@discordjs/voice';
-import prism from 'prism-media';
-import { calculateRmsDb, downsampleTo16k, pcmToWav } from './audio-utils.js';
+import { createOggOpus } from './ogg-muxer.js';
+import { convertToWhisperWav } from './audio-utils.js';
 import { transcribe } from '../transcription/whisper.js';
 import { addTranscription } from '../db/repository.js';
 
 const SILENCE_MS = 3_000;
-const MAX_BUFFER_MS = 60_000;
-const RMS_THRESHOLD_DB = -45;
-const SAMPLE_RATE = 48_000;
-const CHANNELS = 2; // Opus decoder outputs stereo
-const BYTES_PER_SECOND = SAMPLE_RATE * CHANNELS * 2; // 48kHz stereo 16-bit
+const MAX_PACKETS = 3000; // ~60 seconds at 20ms per packet
+const MIN_PACKETS = 25;   // ~0.5 seconds — skip very short bursts
 
 interface UserRecorder {
-  chunks: Buffer[];
-  totalBytes: number;
+  packets: Buffer[];
   silenceTimer: ReturnType<typeof setTimeout> | null;
   destroy: () => void;
 }
@@ -36,16 +32,11 @@ export class RecorderManager {
       end: { behavior: EndBehaviorType.Manual },
     });
 
-    const decoder = new prism.opus.Decoder({ rate: SAMPLE_RATE, channels: CHANNELS, frameSize: 960 });
-    const pcmStream = opusStream.pipe(decoder);
-
     const recorder: UserRecorder = {
-      chunks: [],
-      totalBytes: 0,
+      packets: [],
       silenceTimer: null,
       destroy: () => {
         opusStream.destroy();
-        decoder.destroy();
       },
     };
 
@@ -56,24 +47,21 @@ export class RecorderManager {
       }, SILENCE_MS);
     };
 
-    pcmStream.on('data', (chunk: Buffer) => {
-      if (recorder.totalBytes === 0) {
-        console.log(`First audio packet received from ${username}`);
+    opusStream.on('data', (packet: Buffer) => {
+      if (recorder.packets.length === 0) {
+        console.log(`First audio packet received from ${username} (${packet.length} bytes)`);
       }
-      recorder.chunks.push(chunk);
-      recorder.totalBytes += chunk.length;
+      recorder.packets.push(packet);
       resetSilenceTimer();
 
-      // Force flush if buffer exceeds max duration
-      const bufferDurationMs = (recorder.totalBytes / BYTES_PER_SECOND) * 1000;
-      if (bufferDurationMs >= MAX_BUFFER_MS) {
+      if (recorder.packets.length >= MAX_PACKETS) {
         if (recorder.silenceTimer) clearTimeout(recorder.silenceTimer);
         this.flush(userId, username);
       }
     });
 
-    pcmStream.on('error', (err: Error) => {
-      console.error(`PCM stream error for ${username}:`, err);
+    opusStream.on('error', (err: Error) => {
+      console.error(`Opus stream error for ${username}:`, err);
     });
 
     this.recorders.set(userId, recorder);
@@ -82,23 +70,24 @@ export class RecorderManager {
 
   private async flush(userId: string, username: string): Promise<void> {
     const recorder = this.recorders.get(userId);
-    if (!recorder || recorder.chunks.length === 0) return;
+    if (!recorder || recorder.packets.length === 0) return;
 
-    const pcm = Buffer.concat(recorder.chunks);
-    recorder.chunks = [];
-    recorder.totalBytes = 0;
+    const packets = recorder.packets.splice(0);
 
-    // Check if audio has enough energy
-    const rmsDb = calculateRmsDb(pcm);
-    console.log(`Flush ${username}: ${pcm.length} bytes, ${rmsDb.toFixed(1)} dB`);
-    if (rmsDb < RMS_THRESHOLD_DB) {
-      console.log(`Skipping — below threshold (${RMS_THRESHOLD_DB} dB)`);
+    if (packets.length < MIN_PACKETS) {
+      console.log(`Skipping ${packets.length} packets from ${username} — too short`);
       return;
     }
 
-    // Wrap raw 48kHz mono PCM in a WAV container — Whisper handles resampling
-    const wav = pcmToWav(pcm, SAMPLE_RATE, CHANNELS, 16);
-    console.log(`WAV: ${wav.length} bytes (${(pcm.length / BYTES_PER_SECOND).toFixed(1)}s of audio)`);
+    const durationSec = (packets.length * 20) / 1000;
+    console.log(`Flush ${username}: ${packets.length} packets (${durationSec.toFixed(1)}s)`);
+
+    // Wrap raw Opus packets in OGG container
+    const ogg = createOggOpus(packets, 48_000, 2);
+
+    // Use FFmpeg to convert OGG/Opus → 16kHz mono 16-bit PCM WAV
+    const wav = await convertToWhisperWav(ogg);
+    console.log(`WAV: ${wav.length} bytes`);
 
     try {
       const text = await transcribe(wav);
@@ -119,9 +108,7 @@ export class RecorderManager {
   async flushAll(): Promise<void> {
     const promises: Promise<void>[] = [];
     for (const [userId, recorder] of this.recorders) {
-      if (recorder.chunks.length > 0) {
-        // We need the username — extract from any existing transcription context
-        // For simplicity, we store it when we flush
+      if (recorder.packets.length > 0) {
         promises.push(this.flush(userId, userId));
       }
     }
