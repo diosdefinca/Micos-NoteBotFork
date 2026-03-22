@@ -1,6 +1,6 @@
-import { Interaction, GuildMember, ChannelType } from 'discord.js';
+import { ChatInputCommandInteraction, GuildMember, ChannelType, Interaction } from 'discord.js';
 import { getVoiceConnection, VoiceConnectionStatus } from '@discordjs/voice';
-import { connectToChannel, disconnectFromGuild } from '../voice/connection.js';
+import { connectToChannel } from '../voice/connection.js';
 import { startRecording, stopRecording, getActiveMeeting } from '../meeting/manager.js';
 
 export async function handleInteraction(interaction: Interaction): Promise<void> {
@@ -12,100 +12,97 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
 
   const member = interaction.member as GuildMember;
 
-  switch (interaction.commandName) {
-    case 'join':
-      await handleJoin(interaction, member);
-      break;
-    case 'record':
-      await handleRecord(interaction, member);
-      break;
-    case 'stop':
-      await handleStop(interaction, member);
-      break;
-    case 'status':
-      await handleStatus(interaction, member);
-      break;
+  try {
+    switch (interaction.commandName) {
+      case 'join':
+        await handleJoin(interaction, member);
+        break;
+      case 'record':
+        await handleRecord(interaction, member);
+        break;
+      case 'stop':
+        await handleStop(interaction, member);
+        break;
+      case 'status':
+        await handleStatus(interaction, member);
+        break;
+    }
+  } catch (err) {
+    console.error(`Command error (${interaction.commandName}):`, err);
+    try {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply(`Error: ${msg}`);
+      } else {
+        await interaction.reply({ content: `Error: ${msg}`, ephemeral: true });
+      }
+    } catch {
+      // Interaction expired or already handled — nothing we can do
+    }
   }
 }
 
-async function handleJoin(interaction: Interaction & { reply: Function }, member: GuildMember): Promise<void> {
-  if (!interaction.isChatInputCommand()) return;
+async function handleJoin(interaction: ChatInputCommandInteraction, member: GuildMember): Promise<void> {
+  await interaction.deferReply();
 
   const voiceChannel = member.voice.channel;
   if (!voiceChannel) {
-    await interaction.reply({ content: 'You need to be in a voice channel first.', ephemeral: true });
+    await interaction.editReply('You need to be in a voice channel first.');
     return;
   }
 
   const existing = getVoiceConnection(interaction.guild!.id);
   if (existing) {
-    // Clean up stale connections (e.g. manually disconnected via Discord)
     if (existing.state.status === VoiceConnectionStatus.Destroyed ||
         existing.state.status === VoiceConnectionStatus.Disconnected) {
       existing.destroy();
     } else {
-      await interaction.reply({ content: `Already connected to a voice channel.`, ephemeral: true });
+      await interaction.editReply('Already connected to a voice channel.');
       return;
     }
   }
 
   connectToChannel(voiceChannel);
-  await interaction.reply(`Joined **${voiceChannel.name}**.`);
+  await interaction.editReply(`Joined **${voiceChannel.name}**.`);
 }
 
-async function handleRecord(interaction: Interaction & { reply: Function }, member: GuildMember): Promise<void> {
-  if (!interaction.isChatInputCommand()) return;
+async function handleRecord(interaction: ChatInputCommandInteraction, member: GuildMember): Promise<void> {
+  await interaction.deferReply();
 
   const guildId = interaction.guild!.id;
 
   if (getActiveMeeting(guildId)) {
-    await interaction.reply({ content: 'A recording is already in progress.', ephemeral: true });
+    await interaction.editReply('A recording is already in progress.');
     return;
   }
 
   const voiceChannel = member.voice.channel;
   if (!voiceChannel || voiceChannel.type !== ChannelType.GuildVoice) {
-    await interaction.reply({ content: 'You need to be in a voice channel first.', ephemeral: true });
+    await interaction.editReply('You need to be in a voice channel first.');
     return;
   }
 
   const nonBotMembers = voiceChannel.members.filter((m) => !m.user.bot);
 
-  await interaction.deferReply();
-
-  try {
-    await startRecording(interaction.client, voiceChannel, [...nonBotMembers.values()]);
-    await interaction.editReply(`Recording started in **${voiceChannel.name}**.`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await interaction.editReply(`Failed to start recording: ${msg}`);
-  }
+  await startRecording(interaction.client, voiceChannel, [...nonBotMembers.values()]);
+  await interaction.editReply(`Recording started in **${voiceChannel.name}**.`);
 }
 
-async function handleStop(interaction: Interaction & { reply: Function }, member: GuildMember): Promise<void> {
-  if (!interaction.isChatInputCommand()) return;
+async function handleStop(interaction: ChatInputCommandInteraction, member: GuildMember): Promise<void> {
+  await interaction.deferReply();
 
   const guildId = interaction.guild!.id;
 
   if (!getActiveMeeting(guildId)) {
-    await interaction.reply({ content: 'No recording is currently active.', ephemeral: true });
+    await interaction.editReply('No recording is currently active.');
     return;
   }
 
-  await interaction.deferReply();
-
-  try {
-    await stopRecording(interaction.client, guildId);
-    await interaction.editReply('Recording stopped. Summary sent to attendees.');
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Unknown error';
-    await interaction.editReply(`Error stopping recording: ${msg}`);
-  }
+  await stopRecording(interaction.client, guildId);
+  await interaction.editReply('Recording stopped. Summary sent to attendees.');
 }
 
-async function handleStatus(interaction: Interaction & { reply: Function }, member: GuildMember): Promise<void> {
-  if (!interaction.isChatInputCommand()) return;
-
+async function handleStatus(interaction: ChatInputCommandInteraction, member: GuildMember): Promise<void> {
   const guildId = interaction.guild!.id;
   const meeting = getActiveMeeting(guildId);
 
