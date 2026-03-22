@@ -96,10 +96,9 @@ export class RecorderManager {
       return;
     }
 
-    // Convert 48kHz mono to 16kHz mono WAV for Whisper
-    const downsampled = downsampleTo16k(pcm);
-    const wav = pcmToWav(downsampled, 16_000, 1, 16);
-    console.log(`WAV size: ${wav.length} bytes`);
+    // Wrap raw 48kHz mono PCM in a WAV container — Whisper handles resampling
+    const wav = pcmToWav(pcm, SAMPLE_RATE, CHANNELS, 16);
+    console.log(`WAV: ${wav.length} bytes (${(pcm.length / BYTES_PER_SECOND).toFixed(1)}s of audio)`);
 
     try {
       const text = await transcribe(wav);
