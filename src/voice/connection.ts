@@ -16,6 +16,14 @@ export function connectToChannel(channel: VoiceBasedChannel): VoiceConnection {
     selfMute: true,
   });
 
+  connection.on('stateChange', (oldState, newState) => {
+    console.log(`Voice connection: ${oldState.status} -> ${newState.status}`);
+  });
+
+  connection.on('error', (err) => {
+    console.error('Voice connection error:', err);
+  });
+
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
     try {
       await Promise.race([
