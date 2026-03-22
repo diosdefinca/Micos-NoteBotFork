@@ -8,8 +8,8 @@ const SILENCE_MS = 3_000;
 const MAX_BUFFER_MS = 60_000;
 const RMS_THRESHOLD_DB = -45;
 const SAMPLE_RATE = 48_000;
-const CHANNELS = 1; // Decode to mono directly
-const BYTES_PER_SECOND = SAMPLE_RATE * CHANNELS * 2; // 48kHz mono 16-bit
+const CHANNELS = 2; // Opus decoder outputs stereo
+const BYTES_PER_SECOND = SAMPLE_RATE * CHANNELS * 2; // 48kHz stereo 16-bit
 
 interface UserRecorder {
   chunks: Buffer[];
