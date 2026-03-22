@@ -1,5 +1,5 @@
-app = "notebot"
-primary_region = "lax"
+app = 'micos-notebotfork'
+primary_region = 'lax'
 
 [build]
   dockerfile = "Dockerfile"
