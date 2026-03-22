@@ -1,5 +1,5 @@
 import { Client, VoiceBasedChannel, GuildMember } from 'discord.js';
-import { VoiceConnectionStatus, entersState } from '@discordjs/voice';
+import { VoiceConnectionStatus, entersState, getVoiceConnection } from '@discordjs/voice';
 import { connectToChannel, disconnectFromGuild } from '../voice/connection.js';
 import { RecorderManager } from '../voice/recorder.js';
 import * as repo from '../db/repository.js';
@@ -40,10 +40,16 @@ export async function startRecording(
 
   await repo.createMeeting(meetingId, guildId, channel.id, attendees);
 
-  const connection = connectToChannel(channel);
+  // Reuse existing connection if already joined via /join, otherwise connect
+  let connection = getVoiceConnection(guildId);
+  if (!connection || connection.state.status === VoiceConnectionStatus.Destroyed) {
+    connection = connectToChannel(channel);
+  }
 
   // Wait for the voice connection to be ready before subscribing to audio
-  await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+  if (connection.state.status !== VoiceConnectionStatus.Ready) {
+    await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
+  }
   console.log('Voice connection ready');
 
   const recorder = new RecorderManager(connection, meetingId);
