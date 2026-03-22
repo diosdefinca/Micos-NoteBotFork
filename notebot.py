@@ -15,6 +15,10 @@ from meeting_reader import MeetingReader
 load_dotenv()
 
 discord.opus._load_default()
+if discord.opus.is_loaded():
+    print("Opus codec loaded successfully")
+else:
+    print("WARNING: Opus codec failed to load - voice will not work!")
 
 bot = commands.Bot(
     command_prefix=commands.when_mentioned, intents=discord.Intents.all()
