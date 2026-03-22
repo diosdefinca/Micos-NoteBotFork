@@ -1,5 +1,5 @@
 import { Interaction, GuildMember, ChannelType } from 'discord.js';
-import { getVoiceConnection } from '@discordjs/voice';
+import { getVoiceConnection, VoiceConnectionStatus } from '@discordjs/voice';
 import { connectToChannel, disconnectFromGuild } from '../voice/connection.js';
 import { startRecording, stopRecording, getActiveMeeting } from '../meeting/manager.js';
 
@@ -39,8 +39,14 @@ async function handleJoin(interaction: Interaction & { reply: Function }, member
 
   const existing = getVoiceConnection(interaction.guild!.id);
   if (existing) {
-    await interaction.reply({ content: `Already connected to a voice channel.`, ephemeral: true });
-    return;
+    // Clean up stale connections (e.g. manually disconnected via Discord)
+    if (existing.state.status === VoiceConnectionStatus.Destroyed ||
+        existing.state.status === VoiceConnectionStatus.Disconnected) {
+      existing.destroy();
+    } else {
+      await interaction.reply({ content: `Already connected to a voice channel.`, ephemeral: true });
+      return;
+    }
   }
 
   connectToChannel(voiceChannel);
