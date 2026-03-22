@@ -6,7 +6,9 @@
       "Bash(npm install:*)",
       "Bash(npx tsc:*)",
       "Bash(node -e \"const p = require\\(''prism-media''\\); console.log\\(Object.keys\\(p\\)\\)\")",
-      "Bash(node -e \"const p = require\\(''prism-media''\\); console.log\\(Object.keys\\(p.opus\\)\\)\")"
+      "Bash(node -e \"const p = require\\(''prism-media''\\); console.log\\(Object.keys\\(p.opus\\)\\)\")",
+      "Bash(npm ls:*)",
+      "Bash(npm view:*)"
     ]
   }
 }

@@ -24,18 +24,20 @@ export function connectToChannel(channel: VoiceBasedChannel): VoiceConnection {
       if (networking) {
         networking.on('stateChange', (nOld: any, nNew: any) => {
           console.log(`Voice networking: ${nOld.code} -> ${nNew.code}`);
-          if (nNew.code === 'UdpHandshaking') {
-            console.log('UDP handshake started — waiting for IP discovery...');
-          }
-          if (nNew.reason) {
-            console.log(`Voice networking reason: ${nNew.reason}`);
-          }
-          if (nNew.closeCode) {
-            console.log(`Voice networking closeCode: ${nNew.closeCode}`);
+          // Log all properties of the new state for debugging
+          if (nNew.code === 6) { // Closed
+            console.log(`Voice networking CLOSED - full state:`, JSON.stringify({
+              code: nNew.code,
+              closeCode: nNew.closeCode,
+              reason: nNew.reason,
+            }));
           }
         });
         networking.on('error', (err: Error) => {
           console.error('Voice networking error:', err);
+        });
+        networking.on('close', (code: number) => {
+          console.log(`Voice networking WebSocket closed with code: ${code}`);
         });
       }
     }
