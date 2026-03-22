@@ -1,0 +1,12 @@
+app = "notebot"
+primary_region = "lax"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
