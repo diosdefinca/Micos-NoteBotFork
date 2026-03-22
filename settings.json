@@ -2,7 +2,7 @@
     "saveAudio": false,
     "audioPath": "./recordings",
     "minimumMeetingParticipants": 2,
-    "model_id": "notebotIE/whisper-large-v2-swiss-german",
+    "model_id": "base.en",
     "summarizer_model_id": "gpt-4o",
     "device": "auto",
     "useOriginalLanguage": true
