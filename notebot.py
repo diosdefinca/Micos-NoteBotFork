@@ -1,3 +1,4 @@
+import asyncio
 import discord
 import os
 import time
@@ -25,6 +26,7 @@ class NoteBot(commands.Cog):
         self.bot = bot
         self.meeting_id = None
         self.recorders = {}
+        self._connecting = asyncio.Lock()
 
         self.db_handler = MongoDBHandler(
             os.getenv("MONGO_URI"), os.getenv("MONGO_DB_NAME")
@@ -65,33 +67,36 @@ class NoteBot(commands.Cog):
                 if member.voice is not None and not member.bot:
                     voice_channel = member.voice.channel
                     if guild.voice_client is None:
-                        try:
-                            # Connect to the user's voice channel if not already connected
-                            vc = await voice_channel.connect(
-                                cls=voice_recv.VoiceRecvClient
-                            )
-                            print(
-                                f"Bot connected to {voice_channel.name} (user already in channel)"
-                            )
+                        async with self._connecting:
+                            if guild.voice_client is not None:
+                                continue
+                            try:
+                                # Connect to the user's voice channel if not already connected
+                                vc = await voice_channel.connect(
+                                    cls=voice_recv.VoiceRecvClient
+                                )
+                                print(
+                                    f"Bot connected to {voice_channel.name} (user already in channel)"
+                                )
 
-                            # Define the callback to handle received voice packets
-                            def callback(user, data: voice_recv.VoiceData):
-                                if user is None:
-                                    return
+                                # Define the callback to handle received voice packets
+                                def callback(user, data: voice_recv.VoiceData):
+                                    if user is None:
+                                        return
 
-                                if user.id not in self.recorders:
-                                    self.recorders[user.id] = VoiceRecorder(
-                                        user, self.meeting_id, self.whisper_pipeline, self.settings, self.db_handler
-                                    )
-                                recorder = self.recorders[user.id]
-                                recorder.add_packet(data.pcm)
+                                    if user.id not in self.recorders:
+                                        self.recorders[user.id] = VoiceRecorder(
+                                            user, self.meeting_id, self.whisper_pipeline, self.settings, self.db_handler
+                                        )
+                                    recorder = self.recorders[user.id]
+                                    recorder.add_packet(data.pcm)
 
-                            vc.listen(voice_recv.BasicSink(callback))
-                        except discord.ClientException as e:
-                            print(f"Error connecting to the voice channel: {e}")
-                        except Exception as e:
-                            print(f"An unexpected error occurred: {e}")
-                            traceback.print_exc()
+                                vc.listen(voice_recv.BasicSink(callback))
+                            except discord.ClientException as e:
+                                print(f"Error connecting to the voice channel: {e}")
+                            except Exception as e:
+                                print(f"An unexpected error occurred: {e}")
+                                traceback.print_exc()
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member, before, after):
@@ -129,59 +134,65 @@ class NoteBot(commands.Cog):
 
                 # If the bot is disconnected, connect now
                 if voice_client is None:
-                    try:
-                        vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
-                        print(f"Bot connected to {voice_channel.name}")
+                    async with self._connecting:
+                        if member.guild.voice_client is not None:
+                            return
+                        try:
+                            vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+                            print(f"Bot connected to {voice_channel.name}")
 
-                        def callback(user, data: voice_recv.VoiceData):
-                            if user is None:
-                                return
-                            if user.id not in self.recorders:
-                                self.recorders[user.id] = VoiceRecorder(
-                                    user, self.meeting_id, self.whisper_pipeline, self.settings, self.db_handler
-                                )
-                            recorder = self.recorders[user.id]
-                            recorder.add_packet(data.pcm)
+                            def callback(user, data: voice_recv.VoiceData):
+                                if user is None:
+                                    return
+                                if user.id not in self.recorders:
+                                    self.recorders[user.id] = VoiceRecorder(
+                                        user, self.meeting_id, self.whisper_pipeline, self.settings, self.db_handler
+                                    )
+                                recorder = self.recorders[user.id]
+                                recorder.add_packet(data.pcm)
 
-                        vc.listen(voice_recv.BasicSink(callback))
+                            vc.listen(voice_recv.BasicSink(callback))
 
-                    except Exception as e:
-                        print(f"Error handling voice channel join: {e}")
-                        traceback.print_exc()
+                        except Exception as e:
+                            print(f"Error handling voice channel join: {e}")
+                            traceback.print_exc()
             else:
                 # No active meeting. Check if we have enough participants to start one.
                 if len(non_bot_members) >= self.minimumMeetingParticipants:
-                    # Create a new meeting
-                    try:
-                        meeting_id = f"meeting_{int(time.time())}"
-                        # Store both user id and name for each attendee
-                        attendees = [{"id": m.id, "name": m.name} for m in non_bot_members]
-                        start_date = datetime.now()
-                        end_date = None
-                        self.create_meeting_entry(meeting_id, attendees, start_date, end_date)
-                        print(f"New meeting '{meeting_id}' created.")
+                    async with self._connecting:
+                        if member.guild.voice_client is not None:
+                            return
+                        # Create a new meeting
+                        try:
+                            meeting_id = f"meeting_{int(time.time())}"
+                            # Store both user id and name for each attendee
+                            attendees = [{"id": m.id, "name": m.name} for m in non_bot_members]
+                            start_date = datetime.now()
+                            end_date = None
+                            self.create_meeting_entry(meeting_id, attendees, start_date, end_date)
+                            print(f"New meeting '{meeting_id}' created.")
 
-                        # Connect to the voice channel
-                        vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
-                        print(f"Bot connected to {voice_channel.name}")
+                            # Connect to the voice channel
+                            vc = await voice_channel.connect(cls=voice_recv.VoiceRecvClient)
+                            print(f"Bot connected to {voice_channel.name}")
 
-                        def callback(user, data: voice_recv.VoiceData):
-                            if user is None:
-                                return
+                            def callback(user, data: voice_recv.VoiceData):
+                                if user is None:
+                                    return
 
-                            if user.id not in self.recorders:
-                                self.recorders[user.id] = VoiceRecorder(
-                                    user, self.meeting_id, self.whisper_pipeline, self.settings, self.db_handler
-                                )
+                                if user.id not in self.recorders:
+                                    self.recorders[user.id] = VoiceRecorder(
+                                        user, self.meeting_id, self.whisper_pipeline, self.settings, self.db_handler
+                                    )
 
-                            recorder = self.recorders[user.id]
-                            recorder.add_packet(data.pcm)
+                                recorder = self.recorders[user.id]
+                                recorder.add_packet(data.pcm)
 
-                        vc.listen(voice_recv.BasicSink(callback))
+                            vc.listen(voice_recv.BasicSink(callback))
 
-                    except Exception as e:
-                        print(f"Error handling voice channel join: {e}")
-                        traceback.print_exc()
+                        except Exception as e:
+                            print(f"Error handling voice channel join: {e}")
+                            traceback.print_exc()
                 else:
                     # Not enough participants to start a new meeting; do nothing and don't join
                     print(f"Not enough participants to start a meeting. Need at least {self.minimumMeetingParticipants}, have {len(non_bot_members)}. Waiting...")
