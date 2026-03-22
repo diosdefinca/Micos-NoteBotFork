@@ -17,23 +17,20 @@ export function calculateRmsDb(pcm: Buffer): number {
 }
 
 /**
- * Convert 48kHz stereo PCM to 16kHz mono PCM.
+ * Downsample mono PCM from 48kHz to 16kHz.
+ * Input: 48kHz, 16-bit, 1 channel
+ * Output: 16kHz, 16-bit, 1 channel
  */
-export function downsampleToMono16k(pcm: Buffer): Buffer {
-  // Input: 48kHz, 16-bit, 2 channels
-  // Output: 16kHz, 16-bit, 1 channel
-  // Downsample ratio: 48000/16000 = 3
-  const ratio = 3;
-  const inputSamples = pcm.length / 4; // 2 bytes * 2 channels = 4 bytes per frame
+export function downsampleTo16k(pcm: Buffer): Buffer {
+  const ratio = 3; // 48000 / 16000
+  const inputSamples = pcm.length / 2; // 16-bit = 2 bytes per sample
   const outputSamples = Math.floor(inputSamples / ratio);
   const output = Buffer.alloc(outputSamples * 2);
 
   for (let i = 0; i < outputSamples; i++) {
-    const srcOffset = i * ratio * 4;
-    const left = pcm.readInt16LE(srcOffset);
-    const right = pcm.readInt16LE(srcOffset + 2);
-    const mono = Math.round((left + right) / 2);
-    output.writeInt16LE(Math.max(-32768, Math.min(32767, mono)), i * 2);
+    const srcOffset = i * ratio * 2;
+    const sample = pcm.readInt16LE(srcOffset);
+    output.writeInt16LE(sample, i * 2);
   }
 
   return output;

@@ -1,6 +1,6 @@
 import { VoiceConnection, EndBehaviorType } from '@discordjs/voice';
 import prism from 'prism-media';
-import { calculateRmsDb, downsampleToMono16k, pcmToWav } from './audio-utils.js';
+import { calculateRmsDb, downsampleTo16k, pcmToWav } from './audio-utils.js';
 import { transcribe } from '../transcription/whisper.js';
 import { addTranscription } from '../db/repository.js';
 
@@ -8,8 +8,8 @@ const SILENCE_MS = 3_000;
 const MAX_BUFFER_MS = 60_000;
 const RMS_THRESHOLD_DB = -45;
 const SAMPLE_RATE = 48_000;
-const CHANNELS = 2;
-const BYTES_PER_FRAME = SAMPLE_RATE * CHANNELS * 2; // bytes per second of 48kHz stereo 16-bit
+const CHANNELS = 1; // Decode to mono directly
+const BYTES_PER_SECOND = SAMPLE_RATE * CHANNELS * 2; // 48kHz mono 16-bit
 
 interface UserRecorder {
   chunks: Buffer[];
@@ -65,7 +65,7 @@ export class RecorderManager {
       resetSilenceTimer();
 
       // Force flush if buffer exceeds max duration
-      const bufferDurationMs = (recorder.totalBytes / BYTES_PER_FRAME) * 1000;
+      const bufferDurationMs = (recorder.totalBytes / BYTES_PER_SECOND) * 1000;
       if (bufferDurationMs >= MAX_BUFFER_MS) {
         if (recorder.silenceTimer) clearTimeout(recorder.silenceTimer);
         this.flush(userId, username);
@@ -89,11 +89,17 @@ export class RecorderManager {
     recorder.totalBytes = 0;
 
     // Check if audio has enough energy
-    if (calculateRmsDb(pcm) < RMS_THRESHOLD_DB) return;
+    const rmsDb = calculateRmsDb(pcm);
+    console.log(`Flush ${username}: ${pcm.length} bytes, ${rmsDb.toFixed(1)} dB`);
+    if (rmsDb < RMS_THRESHOLD_DB) {
+      console.log(`Skipping — below threshold (${RMS_THRESHOLD_DB} dB)`);
+      return;
+    }
 
-    // Convert to 16kHz mono WAV for Whisper
-    const mono16k = downsampleToMono16k(pcm);
-    const wav = pcmToWav(mono16k, 16_000, 1, 16);
+    // Convert 48kHz mono to 16kHz mono WAV for Whisper
+    const downsampled = downsampleTo16k(pcm);
+    const wav = pcmToWav(downsampled, 16_000, 1, 16);
+    console.log(`WAV size: ${wav.length} bytes`);
 
     try {
       const text = await transcribe(wav);
