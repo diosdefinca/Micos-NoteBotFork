@@ -169,3 +169,6 @@ cache
 # Node.js
 node_modules/
 dist/
+
+# Test Stuff
+MeetingResults.json
