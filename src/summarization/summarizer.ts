@@ -13,7 +13,7 @@ Line 2: blank
 Line 3+: The output below
 
 ## Context
-2-3 sentences explaining what this meeting was about and what area of the product was discussed.
+A paragraph explaining what this meeting was about and what area of the product was discussed.
 
 ## Tasks
 Extract every concrete task, feature request, bug fix, UI change, or decision that implies work. Each task should be specific enough for a developer or project manager to act on without re-listening to the meeting.

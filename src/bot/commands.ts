@@ -1,7 +1,7 @@
 import { ChatInputCommandInteraction, GuildMember, ChannelType, Interaction } from 'discord.js';
 import { getVoiceConnection, VoiceConnectionStatus } from '@discordjs/voice';
 import { connectToChannel } from '../voice/connection.js';
-import { startRecording, stopRecording, getActiveMeeting } from '../meeting/manager.js';
+import { startRecording, stopRecording, getActiveMeeting, forceReset } from '../meeting/manager.js';
 
 export async function handleInteraction(interaction: Interaction): Promise<void> {
   if (!interaction.isChatInputCommand()) return;
@@ -25,6 +25,9 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
         break;
       case 'status':
         await handleStatus(interaction, member);
+        break;
+      case 'reset':
+        await handleReset(interaction);
         break;
     }
   } catch (err) {
@@ -100,6 +103,24 @@ async function handleStop(interaction: ChatInputCommandInteraction, member: Guil
 
   await stopRecording(interaction.client, guildId);
   await interaction.editReply('Recording stopped. Summary sent to attendees.');
+}
+
+async function handleReset(interaction: ChatInputCommandInteraction): Promise<void> {
+  await interaction.deferReply();
+
+  const guildId = interaction.guild!.id;
+  const result = await forceReset(interaction.client, guildId);
+
+  if (!result.hadMeeting) {
+    await interaction.editReply('No active meeting. Voice connection cleared — ready to be reinvited.');
+    return;
+  }
+
+  if (result.summarized) {
+    await interaction.editReply(`Reset complete. Meeting \`${result.meetingId}\` was finalized and the summary was sent to attendees.`);
+  } else {
+    await interaction.editReply(`Reset complete. Meeting \`${result.meetingId}\` could not be summarized and was marked as errored. Ready to be reinvited.`);
+  }
 }
 
 async function handleStatus(interaction: ChatInputCommandInteraction, member: GuildMember): Promise<void> {

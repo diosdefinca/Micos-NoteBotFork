@@ -89,6 +89,33 @@ export function subscribeUser(guildId: string, userId: string, username: string)
   console.log(`Added late joiner: ${username}`);
 }
 
+export interface ResetResult {
+  hadMeeting: boolean;
+  summarized: boolean;
+  meetingId?: string;
+}
+
+export async function forceReset(client: Client, guildId: string): Promise<ResetResult> {
+  const meeting = activeMeetings.get(guildId);
+
+  if (!meeting) {
+    disconnectFromGuild(guildId);
+    return { hadMeeting: false, summarized: false };
+  }
+
+  try {
+    await stopRecording(client, guildId);
+    return { hadMeeting: true, summarized: true, meetingId: meeting.meetingId };
+  } catch (err) {
+    console.error('Reset: stopRecording failed, forcing cleanup:', err);
+    try { meeting.recorder.destroyAll(); } catch (e) { console.error('destroyAll failed:', e); }
+    activeMeetings.delete(guildId);
+    try { await repo.setMeetingError(meeting.meetingId); } catch (e) { console.error('setMeetingError failed:', e); }
+    disconnectFromGuild(guildId);
+    return { hadMeeting: true, summarized: false, meetingId: meeting.meetingId };
+  }
+}
+
 export async function stopRecording(client: Client, guildId: string): Promise<void> {
   const meeting = activeMeetings.get(guildId);
   if (!meeting) {

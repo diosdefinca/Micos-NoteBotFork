@@ -14,6 +14,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName('status')
     .setDescription('Check if recording is active'),
+  new SlashCommandBuilder()
+    .setName('reset')
+    .setDescription('Force-clear bot state (use if the bot was kicked and can\'t be reinvited)'),
 ].map((cmd) => cmd.toJSON());
 
 const rest = new REST({ version: '10' }).setToken(config.discordToken);
