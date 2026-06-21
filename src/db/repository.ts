@@ -1,6 +1,6 @@
 import { Collection } from 'mongodb';
 import { getDb } from './mongo.js';
-import { Meeting, Transcription, Attendee } from './models.js';
+import { Meeting, Transcription, Attendee, PromptType } from './models.js';
 
 function meetings(): Collection<Meeting> {
   return getDb().collection<Meeting>('meetings');
@@ -11,6 +11,7 @@ export async function createMeeting(
   guildId: string,
   channelId: string,
   attendees: Attendee[],
+  promptType: PromptType,
 ): Promise<void> {
   await meetings().insertOne({
     meetingId,
@@ -22,6 +23,7 @@ export async function createMeeting(
     transcriptions: [],
     title: null,
     summary: null,
+    promptType,
     status: 'active',
   });
 }

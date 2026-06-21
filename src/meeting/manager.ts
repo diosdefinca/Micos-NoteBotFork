@@ -5,6 +5,7 @@ import { RecorderManager } from '../voice/recorder.js';
 import * as repo from '../db/repository.js';
 import { summarizeMeeting } from '../summarization/summarizer.js';
 import { notifyAttendees } from './notifier.js';
+import { PromptType } from '../db/models.js';
 
 interface ActiveMeeting {
   meetingId: string;
@@ -24,6 +25,7 @@ export async function startRecording(
   client: Client,
   channel: VoiceBasedChannel,
   members: GuildMember[],
+  promptType: PromptType = 'dev',
 ): Promise<string> {
   const guildId = channel.guild.id;
 
@@ -38,7 +40,7 @@ export async function startRecording(
     joinedAt: new Date(),
   }));
 
-  await repo.createMeeting(meetingId, guildId, channel.id, attendees);
+  await repo.createMeeting(meetingId, guildId, channel.id, attendees, promptType);
 
   // Reuse existing connection if already joined via /join, otherwise connect
   let connection = getVoiceConnection(guildId);

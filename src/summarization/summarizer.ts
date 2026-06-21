@@ -1,10 +1,10 @@
 import OpenAI from 'openai';
 import { config } from '../config.js';
-import { Meeting } from '../db/models.js';
+import { Meeting, PromptType } from '../db/models.js';
 
 const openai = new OpenAI({ apiKey: config.openaiApiKey });
 
-const SYSTEM_PROMPT = `You are a meeting-to-task-list converter for a development team. Your job is to extract EVERY specific, actionable item from a meeting transcript — not summarize it.
+const DEV_PROMPT = `You are a meeting-to-task-list converter for a development team. Your job is to extract EVERY specific, actionable item from a meeting transcript — not summarize it.
 
 Output format (strict):
 
@@ -37,6 +37,43 @@ Rules:
 List any decisions that were made during the meeting that aren't tasks but are important context:
 - [Decision]: [What was decided and why]`;
 
+const CAMP_PROMPT = `You are a meeting note taker for a community group (such as a Burning Man theme camp) planning together. Your job is to summarize the discussion and pull out the concrete action items each person agreed to take on.
+
+Output format (strict):
+
+Line 1: A short meeting title (no prefix, no quotes)
+Line 2: blank
+Line 3+: The output below
+
+## Summary
+A short, friendly paragraph or two recapping what the group discussed, the main topics covered, and the overall vibe or direction decided.
+
+## Action Items
+List every concrete thing someone agreed to do, or that the group agreed needs doing. Group them by person when an owner is clear.
+
+Format each item as:
+- **[Person's name]**: [What they're doing, including any specifics — amounts, dates, locations, budgets, who they're coordinating with]
+
+If an action item has no clear owner yet, put it under a **Needs an owner** heading so the group can assign it later.
+
+Rules:
+- Capture every commitment, offer, and to-do — supplies to buy, things to build, people to contact, money to collect, rides/logistics to arrange, research to do.
+- Include the WHO whenever a name or "I'll" / "I can" was said. If someone volunteered, credit them.
+- Include specifics: quantities, dollar amounts, dates, deadlines, locations, and who is coordinating with whom.
+- Note any deadlines or dates mentioned.
+- Keep separate items separate — don't merge two different tasks into one.
+- Use a warm, plain, non-corporate tone. This is a camp, not a sprint.
+- Skip filler chatter, side conversations, and audio issues.
+
+## Decisions & Open Questions
+- **Decided**: [Anything the group agreed on that isn't a task — themes, dates, budget totals, policies]
+- **Open**: [Questions left unresolved that the group still needs to figure out]`;
+
+const PROMPTS: Record<PromptType, string> = {
+  dev: DEV_PROMPT,
+  camp: CAMP_PROMPT,
+};
+
 export async function summarizeMeeting(meeting: Meeting): Promise<{ title: string; summary: string }> {
   const transcriptLines = meeting.transcriptions
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
@@ -52,7 +89,7 @@ export async function summarizeMeeting(meeting: Meeting): Promise<{ title: strin
     messages: [
       {
         role: 'system',
-        content: SYSTEM_PROMPT,
+        content: PROMPTS[meeting.promptType ?? 'dev'],
       },
       {
         role: 'user',

@@ -11,6 +11,8 @@ export interface Attendee {
   joinedAt: Date;
 }
 
+export type PromptType = 'dev' | 'camp';
+
 export interface Meeting {
   meetingId: string;
   guildId: string;
@@ -21,5 +23,6 @@ export interface Meeting {
   transcriptions: Transcription[];
   title: string | null;
   summary: string | null;
+  promptType: PromptType;
   status: 'active' | 'summarizing' | 'complete' | 'error';
 }

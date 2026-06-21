@@ -2,6 +2,7 @@ import { ChatInputCommandInteraction, GuildMember, ChannelType, Interaction } fr
 import { getVoiceConnection, VoiceConnectionStatus } from '@discordjs/voice';
 import { connectToChannel } from '../voice/connection.js';
 import { startRecording, stopRecording, getActiveMeeting, forceReset } from '../meeting/manager.js';
+import { PromptType } from '../db/models.js';
 
 export async function handleInteraction(interaction: Interaction): Promise<void> {
   if (!interaction.isChatInputCommand()) return;
@@ -87,8 +88,12 @@ async function handleRecord(interaction: ChatInputCommandInteraction, member: Gu
 
   const nonBotMembers = voiceChannel.members.filter((m) => !m.user.bot);
 
-  await startRecording(interaction.client, voiceChannel, [...nonBotMembers.values()]);
-  await interaction.editReply(`Recording started in **${voiceChannel.name}**.`);
+  const promptType = (interaction.options.getString('mode') ?? 'dev') as PromptType;
+
+  await startRecording(interaction.client, voiceChannel, [...nonBotMembers.values()], promptType);
+
+  const modeLabel = promptType === 'camp' ? 'camp / general meeting notes' : 'dev team task list';
+  await interaction.editReply(`Recording started in **${voiceChannel.name}** (${modeLabel}).`);
 }
 
 async function handleStop(interaction: ChatInputCommandInteraction, member: GuildMember): Promise<void> {

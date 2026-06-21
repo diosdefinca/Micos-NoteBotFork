@@ -7,7 +7,16 @@ const commands = [
     .setDescription('Bot joins your current voice channel'),
   new SlashCommandBuilder()
     .setName('record')
-    .setDescription('Start recording the current voice channel'),
+    .setDescription('Start recording the current voice channel')
+    .addStringOption((option) =>
+      option
+        .setName('mode')
+        .setDescription('Which summary style to use (defaults to dev team tasks)')
+        .addChoices(
+          { name: 'Dev team task list', value: 'dev' },
+          { name: 'Camp / general meeting notes', value: 'camp' },
+        ),
+    ),
   new SlashCommandBuilder()
     .setName('stop')
     .setDescription('Stop recording and get a meeting summary'),
